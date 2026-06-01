@@ -104,7 +104,11 @@ export default function AdminOrdersPage() {
 
   const calculateOrderTotal = (items) => {
     if (!items || !Array.isArray(items)) return 0;
-    return items.reduce((sum, item) => sum + (item.price || 0) * (item.qty || 0), 0);
+    return items.reduce((sum, item) => {
+      // Don't include cancelled items in the total
+      if (item.cancelled) return sum;
+      return sum + (item.price || 0) * (item.qty || 0);
+    }, 0);
   };
 
   // Filter orders based on selected status
@@ -118,6 +122,8 @@ export default function AdminOrdersPage() {
   const filteredStats = {
     totalOrders: filteredOrders.length,
     totalRevenue: filteredOrders.reduce((sum, order) => {
+      // Don't include cancelled orders in revenue
+      if (order.status === "cancelled") return sum;
       return sum + calculateOrderTotal(order.items);
     }, 0),
   };
@@ -208,7 +214,13 @@ export default function AdminOrdersPage() {
           filteredOrders.map((order) => (
             <div
               key={order._id}
-              className="rounded border bg-white p-6 shadow transition-all hover:shadow-md"
+              className={`rounded border p-6 shadow transition-all hover:shadow-md ${
+                order.status === "paid"
+                  ? "border-green-500 bg-green-50"
+                  : order.status === "cancelled"
+                  ? "border-red-500 bg-red-50"
+                  : "bg-white"
+              }`}
             >
               <div className="mb-4 flex items-start justify-between">
                 <div>
@@ -241,22 +253,38 @@ export default function AdminOrdersPage() {
 
               <div className="space-y-2">
                 <div className="text-sm font-medium text-gray-700">Items:</div>
-                {order.items && Array.isArray(order.items) && order.items.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex justify-between rounded bg-gray-50 p-3"
-                  >
-                    <div>
-                      <div className="font-medium">{item.name || 'Unknown Item'}</div>
-                      <div className="text-sm text-gray-600">
-                        Qty: {item.qty || 0} × ₹{(item.price || 0).toFixed(2)}
+                {order.items && Array.isArray(order.items) && order.items.map((item, idx) => {
+                  // If order is cancelled, treat all items as cancelled for display
+                  const isItemCancelled = item.cancelled || order.status === "cancelled";
+                  
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex justify-between rounded p-3 ${
+                        isItemCancelled 
+                          ? "bg-red-50 border border-red-200" 
+                          : "bg-gray-50"
+                      }`}
+                    >
+                      <div>
+                        <div className={`font-medium ${isItemCancelled ? "text-red-600 line-through" : ""}`}>
+                          {item.name || 'Unknown Item'}
+                          {isItemCancelled && (
+                            <span className="ml-2 text-xs font-semibold text-red-600">
+                              (CANCELLED)
+                            </span>
+                          )}
+                        </div>
+                        <div className={`text-sm ${isItemCancelled ? "text-red-600" : "text-gray-600"}`}>
+                          Qty: {item.qty || 0} × ₹{(item.price || 0).toFixed(2)}
+                        </div>
+                      </div>
+                      <div className={`font-medium ${isItemCancelled ? "text-red-600 line-through" : ""}`}>
+                        ₹{((item.qty || 0) * (item.price || 0)).toFixed(2)}
                       </div>
                     </div>
-                    <div className="font-medium">
-                      ₹{((item.qty || 0) * (item.price || 0)).toFixed(2)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {order.notes && (

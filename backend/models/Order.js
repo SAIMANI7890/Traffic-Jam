@@ -11,6 +11,7 @@ const orderItemSchema = new mongoose.Schema(
     price: { type: Number, required: true },
     qty: { type: Number, required: true, min: 1 },
     delivered: { type: Boolean, default: false }, // Track if item has been delivered to table
+    cancelled: { type: Boolean, default: false }, // Track if item has been cancelled
     kitchenStatus: {
       type: String,
       enum: ["pending", "preparing", "completed"],
@@ -36,6 +37,11 @@ const orderSchema = new mongoose.Schema(
     isParcel: { type: Boolean, default: false }, // Flag for parcel/takeaway orders
     customerName: { type: String }, // Customer name for parcel orders
     customerPhone: { type: String }, // Customer phone for parcel orders
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
   { timestamps: true },
 );

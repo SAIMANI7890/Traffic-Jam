@@ -55,10 +55,10 @@ export default function StaffHome() {
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <button
-            onClick={() => navigate("/staff/parcel")}
-            className="w-full sm:w-auto rounded bg-orange-600 px-4 sm:px-6 py-2 font-medium text-white hover:bg-orange-700"
+            onClick={() => navigate("/staff/parcel-orders")}
+            className="w-full sm:w-auto rounded bg-purple-600 px-4 sm:px-6 py-2 font-medium text-white hover:bg-purple-700"
           >
-            📦 Parcel
+            📋 Parcel Orders
           </button>
           <button
             onClick={handleGoToKitchen}

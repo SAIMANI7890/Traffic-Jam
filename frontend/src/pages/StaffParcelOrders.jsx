@@ -1,20 +1,18 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import orderService from "../services/orderService.js";
 import socketService from "../services/socketService.js";
 import { useAuth } from "../hooks/useAuth.js";
 
-export default function StaffOrdersView() {
-  const { layoutId } = useParams();
+export default function StaffParcelOrders() {
   const navigate = useNavigate();
   const { token } = useAuth();
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedTable, setSelectedTable] = useState(""); // Filter by table
-  const [cancellingOrderId, setCancellingOrderId] = useState(null); // Track which order is being cancelled
-  const [itemsToCancel, setItemsToCancel] = useState([]); // Track selected items for cancellation
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
+  const [itemsToCancel, setItemsToCancel] = useState([]);
 
   useEffect(() => {
     loadOrders();
@@ -38,9 +36,21 @@ export default function StaffOrdersView() {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      // Filter orders by layoutId
-      const response = await orderService.getOrders({ layoutId });
-      setOrders(response.orders || []);
+      // Get today's date range
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Filter parcel orders for today
+      const response = await orderService.getOrders({
+        startDate: today.toISOString(),
+        endDate: tomorrow.toISOString(),
+      });
+      
+      // Filter only parcel orders
+      const parcelOrders = (response.orders || []).filter(order => order.isParcel);
+      setOrders(parcelOrders);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load orders");
     } finally {
@@ -49,15 +59,15 @@ export default function StaffOrdersView() {
   };
 
   const handleOrderCreate = (newOrder) => {
-    // Only add order if it belongs to this layout
-    if (newOrder.layoutId === layoutId) {
+    // Only add parcel orders
+    if (newOrder.isParcel) {
       setOrders((prev) => [newOrder, ...prev]);
     }
   };
 
   const handleOrderUpdate = (updatedOrder) => {
-    // Only update order if it belongs to this layout
-    if (updatedOrder.layoutId === layoutId) {
+    // Only update if it's a parcel order
+    if (updatedOrder.isParcel) {
       setOrders((prev) =>
         prev.map((order) =>
           order._id === updatedOrder._id ? updatedOrder : order
@@ -67,14 +77,12 @@ export default function StaffOrdersView() {
   };
 
   const handleOrderDelete = ({ orderId }) => {
-    // Remove order regardless of layout (it might have been in this layout)
     setOrders((prev) => prev.filter((order) => order._id !== orderId));
   };
 
   const handleToggleItemDelivered = async (orderId, itemIndex, currentStatus) => {
     try {
       await orderService.toggleItemDelivered(orderId, itemIndex, !currentStatus);
-      // Order will be updated via Socket.IO
     } catch (err) {
       alert(err.response?.data?.message || "Failed to update item status");
     }
@@ -85,7 +93,6 @@ export default function StaffOrdersView() {
 
     try {
       await orderService.updateOrderStatus(orderId, "paid");
-      // Order will be updated via Socket.IO
     } catch (err) {
       alert(err.response?.data?.message || "Failed to mark order as paid");
     }
@@ -122,11 +129,9 @@ export default function StaffOrdersView() {
     }
 
     try {
-      // Get the current order
       const order = orders.find((o) => o._id === orderId);
       if (!order) return;
 
-      // Mark selected items as cancelled
       const updatedItems = order.items.map((item, idx) => {
         if (itemsToCancel.includes(idx)) {
           return { ...item, cancelled: true };
@@ -134,18 +139,14 @@ export default function StaffOrdersView() {
         return item;
       });
 
-      // Check if all items are cancelled
       const allCancelled = updatedItems.every(item => item.cancelled === true);
 
-      // If all items are cancelled, mark the entire order as cancelled
       if (allCancelled) {
         await orderService.updateOrderStatus(orderId, "cancelled");
       } else {
-        // Update the order with cancelled items marked
         await orderService.updateOrderItems(orderId, updatedItems);
       }
 
-      // Reset cancellation state
       setCancellingOrderId(null);
       setItemsToCancel([]);
     } catch (err) {
@@ -216,41 +217,27 @@ export default function StaffOrdersView() {
   const calculateOrderTotal = (items) => {
     if (!items || !Array.isArray(items)) return 0;
     return items.reduce((sum, item) => {
-      // Don't include cancelled items in the total
       if (item.cancelled) return sum;
       return sum + (item.price || 0) * (item.qty || 0);
     }, 0);
   };
 
-  // Show all orders, sort by status (active first) then by creation time (FCFS)
-  const activeOrders = orders
-    .filter((order) => {
-      // Filter by selected table if any
-      if (selectedTable && order.tableId !== selectedTable) {
-        return false;
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      // Paid and cancelled orders go to bottom
-      const aIsInactive = a.status === "paid" || a.status === "cancelled";
-      const bIsInactive = b.status === "paid" || b.status === "cancelled";
-      
-      if (aIsInactive && !bIsInactive) return 1;
-      if (!aIsInactive && bIsInactive) return -1;
-      
-      // Otherwise sort by creation time (FCFS)
-      return new Date(a.createdAt) - new Date(b.createdAt);
-    });
-
-  // Get unique table IDs for filter dropdown
-  const uniqueTables = [...new Set(orders.map((order) => order.tableId))].sort();
+  // Sort orders: active first, then paid/cancelled
+  const sortedOrders = orders.sort((a, b) => {
+    const aIsInactive = a.status === "paid" || a.status === "cancelled";
+    const bIsInactive = b.status === "paid" || b.status === "cancelled";
+    
+    if (aIsInactive && !bIsInactive) return 1;
+    if (!aIsInactive && bIsInactive) return -1;
+    
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
 
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-center">
-          <div className="text-lg">Loading orders...</div>
+          <div className="text-lg">Loading parcel orders...</div>
         </div>
       </div>
     );
@@ -262,14 +249,14 @@ export default function StaffOrdersView() {
       <div className="flex items-center justify-between">
         <div>
           <button
-            onClick={() => navigate(`/staff/layout/${layoutId}`)}
+            onClick={() => navigate("/staff/home")}
             className="mb-2 text-sm text-blue-600 hover:underline"
           >
-            ← Back to layout
+            ← Back to Home
           </button>
-          <h1 className="text-3xl font-bold">Orders</h1>
+          <h1 className="text-3xl font-bold">📦 Parcel Orders</h1>
           <p className="mt-1 text-gray-600">
-            Track and manage orders (sorted by time - FCFS)
+            Today's parcel/takeaway orders
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -277,22 +264,12 @@ export default function StaffOrdersView() {
             <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
             <span className="text-sm text-gray-600">Live Updates</span>
           </div>
-          {/* Table Filter */}
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Filter by Table:</label>
-            <select
-              value={selectedTable}
-              onChange={(e) => setSelectedTable(e.target.value)}
-              className="rounded border border-gray-300 px-3 py-1 text-sm focus:border-blue-500 focus:outline-none"
-            >
-              <option value="">All Tables</option>
-              {uniqueTables.map((tableId) => (
-                <option key={tableId} value={tableId}>
-                  {tableId}
-                </option>
-              ))}
-            </select>
-          </div>
+          <button
+            onClick={() => navigate("/staff/parcel")}
+            className="rounded bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
+          >
+            + New Parcel Order
+          </button>
         </div>
       </div>
 
@@ -304,7 +281,7 @@ export default function StaffOrdersView() {
 
       {/* Orders List */}
       <div className="space-y-4">
-        {activeOrders.length === 0 ? (
+        {sortedOrders.length === 0 ? (
           <div className="rounded-lg border bg-white p-12 text-center shadow">
             <div className="text-gray-400">
               <svg
@@ -317,19 +294,19 @@ export default function StaffOrdersView() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
                 />
               </svg>
               <p className="mt-4 text-lg font-medium text-gray-600">
-                No active orders
+                No parcel orders today
               </p>
               <p className="mt-2 text-sm text-gray-500">
-                Orders will appear here when customers place them
+                Parcel orders will appear here when created
               </p>
             </div>
           </div>
         ) : (
-          activeOrders.map((order) => (
+          sortedOrders.map((order) => (
             <div
               key={order._id}
               className={`rounded-lg border p-6 shadow transition-all hover:shadow-md ${
@@ -345,7 +322,7 @@ export default function StaffOrdersView() {
                 <div>
                   <div className="flex items-center gap-3">
                     <h3 className="text-xl font-semibold">
-                      Table: {order.tableId || "N/A"}
+                      📦 Parcel Order
                     </h3>
                     <span
                       className={`rounded px-2 py-1 text-xs font-medium ${getStatusColor(order.status)}`}
@@ -358,6 +335,16 @@ export default function StaffOrdersView() {
                       ? new Date(order.createdAt).toLocaleString()
                       : "N/A"}
                   </div>
+                  {order.customerName && (
+                    <div className="mt-1 text-sm font-medium text-gray-700">
+                      Customer: {order.customerName}
+                    </div>
+                  )}
+                  {order.customerPhone && (
+                    <div className="mt-1 text-sm text-gray-600">
+                      Phone: {order.customerPhone}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <div className="text-sm text-gray-600">Total</div>
@@ -367,13 +354,12 @@ export default function StaffOrdersView() {
                 </div>
               </div>
 
-              {/* Order Items with Delivery Tracking */}
+              {/* Order Items */}
               <div className="space-y-2">
                 <div className="text-sm font-medium text-gray-700">Items:</div>
                 {order.items &&
                   Array.isArray(order.items) &&
                   order.items.map((item, idx) => {
-                    // If order is cancelled, treat all items as cancelled for display
                     const isItemCancelled = item.cancelled || order.status === "cancelled";
                     
                     return (
@@ -386,7 +372,6 @@ export default function StaffOrdersView() {
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          {/* Show cancellation checkbox if in cancellation mode, but disable if already cancelled */}
                           {cancellingOrderId === order._id ? (
                             <input
                               type="checkbox"
@@ -454,11 +439,10 @@ export default function StaffOrdersView() {
                 </div>
               )}
 
-              {/* Action Buttons - Show for all non-paid and non-cancelled orders */}
+              {/* Action Buttons */}
               {order.status !== "paid" && order.status !== "cancelled" && (
                 <div className="mt-4">
                   {cancellingOrderId === order._id ? (
-                    // Cancellation Mode - Show Done and Cancel buttons
                     <div className="space-y-2">
                       <div className="rounded bg-red-50 p-3 text-sm text-red-700">
                         Select items to cancel and click "Done" to confirm
@@ -479,7 +463,6 @@ export default function StaffOrdersView() {
                       </div>
                     </div>
                   ) : (
-                    // Normal Mode - Show Bill Paid and Cancel buttons
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleMarkPaid(order._id)}

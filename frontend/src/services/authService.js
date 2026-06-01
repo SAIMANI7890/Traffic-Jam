@@ -12,6 +12,25 @@ const authService = {
     }
   },
 
+  async verifyToken() {
+    try {
+      const stored = this.getStoredAuth();
+      if (!stored?.token) {
+        return { valid: false, user: null };
+      }
+
+      // Call backend to verify token
+      const { data } = await api.get("/api/auth/verify");
+      return { valid: true, user: data.user };
+    } catch (error) {
+      // Token is invalid or expired
+      console.warn("[authService] Token verification failed:", error.response?.status);
+      // Clear invalid token
+      this.logout();
+      return { valid: false, user: null };
+    }
+  },
+
   async login(credentials, userType = "admin") {
     const { action, ...rest } = credentials;
     let endpoint = "";

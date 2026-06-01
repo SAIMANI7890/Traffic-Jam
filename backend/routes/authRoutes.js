@@ -8,6 +8,7 @@ import {
   signupStaff,
   changeAdminPin,
   getAdminPin,
+  verifyToken,
 } from "../controllers/authController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import { adminOnly } from "../middleware/roleMiddleware.js";
@@ -106,5 +107,10 @@ router.post(
 
 // Staff Login (supports both username+PIN and email+password)
 router.post("/staff/login", loginStaff);
+
+// ==================== TOKEN VERIFICATION ====================
+
+// Verify Token (protected route - checks if token is still valid)
+router.get("/verify", protect, verifyToken);
 
 export default router;

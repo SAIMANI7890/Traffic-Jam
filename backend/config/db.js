@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import logger from "../utils/logger.js";
 
 const getDeepestCode = (err) => {
   const visited = new Set();
@@ -44,18 +45,15 @@ const connectDB = async () => {
 
   try {
     await connectWithMongoose(mongoUri);
-    // eslint-disable-next-line no-console
-    console.log("MongoDB connected");
+    logger.info("MongoDB connected");
     return;
   } catch (err) {
     if (fallbackUri && isSrvDnsFailure(err, mongoUri)) {
-      // eslint-disable-next-line no-console
-      console.warn(
+      logger.warn(
         `MongoDB SRV DNS lookup failed for ${redactMongoUri(mongoUri)}; attempting MONGO_URI_FALLBACK...`,
       );
       await connectWithMongoose(fallbackUri);
-      // eslint-disable-next-line no-console
-      console.log("MongoDB connected (via MONGO_URI_FALLBACK)");
+      logger.info("MongoDB connected (via MONGO_URI_FALLBACK)");
       return;
     }
 

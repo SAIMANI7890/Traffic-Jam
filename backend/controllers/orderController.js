@@ -4,7 +4,7 @@ import Order from "../models/Order.js";
 export const getOrders = async (req, res) => {
   try {
     const { status, tableId, layoutId, startDate, endDate } = req.query;
-    const filter = {};
+    const filter = { organizationId: req.user.organizationId };
 
     if (status) {
       filter.status = status;
@@ -42,7 +42,10 @@ export const getOrders = async (req, res) => {
 // Get single order
 export const getOrder = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id)
+    const order = await Order.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    })
       .populate("createdBy", "username email")
       .populate("items.menuItem", "name");
 
@@ -81,6 +84,7 @@ export const createOrder = async (req, res) => {
       notes: notes || "",
       status: "open",
       createdBy: req.user.id,
+      organizationId: req.user.organizationId,
       isParcel: isParcel || false,
     };
 
@@ -123,7 +127,10 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(400).json({ message: "Invalid status" });
     }
 
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    });
 
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
@@ -163,7 +170,10 @@ export const updateOrderItems = async (req, res) => {
       return res.status(400).json({ message: "Items array is required" });
     }
 
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    });
 
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
@@ -191,7 +201,10 @@ export const updateOrderItems = async (req, res) => {
 // Delete order
 export const deleteOrder = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    });
 
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
@@ -220,7 +233,10 @@ export const toggleItemDelivered = async (req, res) => {
       return res.status(400).json({ message: "Item index and delivered status are required" });
     }
 
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    });
 
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
@@ -267,20 +283,32 @@ export const getOrderStats = async (req, res) => {
 
     const todayOrders = await Order.find({
       createdAt: { $gte: today },
+      organizationId: req.user.organizationId,
     });
 
     const totalOrders = todayOrders.length;
     const totalRevenue = todayOrders.reduce((sum, order) => {
+      // Don't include cancelled orders in revenue
+      if (order.status === "cancelled") return sum;
+      
       const orderTotal = order.items.reduce(
-        (itemSum, item) => itemSum + item.price * item.qty,
+        (itemSum, item) => {
+          // Don't include cancelled items in revenue
+          if (item.cancelled) return itemSum;
+          return itemSum + item.price * item.qty;
+        },
         0,
       );
       return sum + orderTotal;
     }, 0);
 
+    const mongoose = await import("mongoose");
     const ordersByStatus = await Order.aggregate([
       {
-        $match: { createdAt: { $gte: today } },
+        $match: {
+          createdAt: { $gte: today },
+          organizationId: new mongoose.Types.ObjectId(req.user.organizationId),
+        },
       },
       {
         $group: {
@@ -306,6 +334,7 @@ export const getKitchenOrders = async (req, res) => {
     // Get orders that are not cancelled or paid
     const orders = await Order.find({
       status: { $nin: ["cancelled", "paid"] },
+      organizationId: req.user.organizationId,
     })
       .populate("createdBy", "username email")
       .populate("items.menuItem", "name")
@@ -332,7 +361,10 @@ export const updateKitchenStatus = async (req, res) => {
       return res.status(400).json({ message: "Invalid kitchen status" });
     }
 
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    });
 
     if (!order) {
       return res.status(404).json({ message: "Order not found" });

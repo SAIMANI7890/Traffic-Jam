@@ -1,6 +1,7 @@
 import { createContext, useEffect, useMemo, useState } from "react";
 
 import authService from "../services/authService.js";
+import logger from "../utils/logger.js";
 
 export const AuthContext = createContext(null);
 
@@ -12,22 +13,47 @@ export function AuthProvider({ children }) {
   });
 
   useEffect(() => {
-    // Load auth data from localStorage
-    const stored = authService.getStoredAuth();
-    
-    console.log("[AuthContext] Loading auth from localStorage:", {
-      hasToken: !!stored?.token,
-      hasUser: !!stored?.user,
-      userRole: stored?.user?.role,
-      username: stored?.user?.username,
-    });
-    
-    // Update all state at once to avoid race conditions
-    setAuthState({
-      user: stored?.user || null,
-      token: stored?.token || null,
-      loading: false,
-    });
+    // Verify token on app load
+    const verifyStoredToken = async () => {
+      const stored = authService.getStoredAuth();
+      
+      if (!stored?.token) {
+        // No token stored, user is not logged in
+        logger.log("[AuthContext] No stored token found");
+        setAuthState({
+          user: null,
+          token: null,
+          loading: false,
+        });
+        return;
+      }
+
+      logger.log("[AuthContext] Found stored token, verifying...");
+      
+      // Verify token with backend
+      const { valid, user } = await authService.verifyToken();
+      
+      if (valid && user) {
+        logger.log("[AuthContext] Token is valid, user authenticated:", {
+          userRole: user.role,
+          username: user.username,
+        });
+        setAuthState({
+          user,
+          token: stored.token,
+          loading: false,
+        });
+      } else {
+        logger.log("[AuthContext] Token is invalid or expired, clearing session");
+        setAuthState({
+          user: null,
+          token: null,
+          loading: false,
+        });
+      }
+    };
+
+    verifyStoredToken();
   }, []);
 
   const value = useMemo(
@@ -37,7 +63,7 @@ export function AuthProvider({ children }) {
       loading: authState.loading,
       login: async (credentials, userType) => {
         const result = await authService.login(credentials, userType);
-        console.log("[AuthContext] Login successful:", {
+        logger.log("[AuthContext] Login successful:", {
           userRole: result.user?.role,
           username: result.user?.username,
           hasToken: !!result.token,
@@ -50,7 +76,7 @@ export function AuthProvider({ children }) {
         return result;
       },
       logout: () => {
-        console.log("[AuthContext] Logging out");
+        logger.log("[AuthContext] Logging out");
         authService.logout();
         setAuthState({
           user: null,

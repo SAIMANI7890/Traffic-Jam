@@ -16,6 +16,11 @@ const layoutSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     tables: { type: [tableSchema], default: [] },
     isActive: { type: Boolean, default: true },
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
   { timestamps: true },
 );

@@ -5,7 +5,7 @@ import Category from "../models/Category.js";
 export const getMenuItems = async (req, res) => {
   try {
     const { category, search } = req.query;
-    const filter = {};
+    const filter = { organizationId: req.user.organizationId };
 
     if (category) {
       filter.category = category;
@@ -28,10 +28,10 @@ export const getMenuItems = async (req, res) => {
 // Get single menu item
 export const getMenuItem = async (req, res) => {
   try {
-    const item = await MenuItem.findById(req.params.id).populate(
-      "category",
-      "name",
-    );
+    const item = await MenuItem.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    }).populate("category", "name");
 
     if (!item) {
       return res.status(404).json({ message: "Menu item not found" });
@@ -57,11 +57,15 @@ export const createMenuItem = async (req, res) => {
     if (category && typeof category === "string" && category.trim()) {
       const existingCategory = await Category.findOne({
         name: category.trim(),
+        organizationId: req.user.organizationId,
       });
       if (existingCategory) {
         categoryId = existingCategory._id;
       } else {
-        const newCategory = await Category.create({ name: category.trim() });
+        const newCategory = await Category.create({
+          name: category.trim(),
+          organizationId: req.user.organizationId,
+        });
         categoryId = newCategory._id;
       }
     }
@@ -72,6 +76,7 @@ export const createMenuItem = async (req, res) => {
       price,
       category: categoryId || null,
       isAvailable: isAvailable !== undefined ? isAvailable : true,
+      organizationId: req.user.organizationId,
     });
 
     const populatedItem = await MenuItem.findById(item._id).populate(
@@ -90,7 +95,10 @@ export const updateMenuItem = async (req, res) => {
   try {
     const { name, description, price, category, isAvailable } = req.body;
 
-    const item = await MenuItem.findById(req.params.id);
+    const item = await MenuItem.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    });
     if (!item) {
       return res.status(404).json({ message: "Menu item not found" });
     }
@@ -100,11 +108,15 @@ export const updateMenuItem = async (req, res) => {
     if (category && typeof category === "string" && category.trim()) {
       const existingCategory = await Category.findOne({
         name: category.trim(),
+        organizationId: req.user.organizationId,
       });
       if (existingCategory) {
         categoryId = existingCategory._id;
       } else {
-        const newCategory = await Category.create({ name: category.trim() });
+        const newCategory = await Category.create({
+          name: category.trim(),
+          organizationId: req.user.organizationId,
+        });
         categoryId = newCategory._id;
       }
     }
@@ -131,7 +143,10 @@ export const updateMenuItem = async (req, res) => {
 // Delete menu item
 export const deleteMenuItem = async (req, res) => {
   try {
-    const item = await MenuItem.findById(req.params.id);
+    const item = await MenuItem.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    });
 
     if (!item) {
       return res.status(404).json({ message: "Menu item not found" });
@@ -148,7 +163,9 @@ export const deleteMenuItem = async (req, res) => {
 // Get all categories
 export const getCategories = async (req, res) => {
   try {
-    const categories = await Category.find().sort({ name: 1 });
+    const categories = await Category.find({
+      organizationId: req.user.organizationId,
+    }).sort({ name: 1 });
     res.json({ categories });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -164,12 +181,18 @@ export const createCategory = async (req, res) => {
       return res.status(400).json({ message: "Category name is required" });
     }
 
-    const existing = await Category.findOne({ name: name.trim() });
+    const existing = await Category.findOne({
+      name: name.trim(),
+      organizationId: req.user.organizationId,
+    });
     if (existing) {
       return res.status(400).json({ message: "Category already exists" });
     }
 
-    const category = await Category.create({ name: name.trim() });
+    const category = await Category.create({
+      name: name.trim(),
+      organizationId: req.user.organizationId,
+    });
 
     res.status(201).json({ category });
   } catch (error) {
@@ -180,14 +203,20 @@ export const createCategory = async (req, res) => {
 // Delete category
 export const deleteCategory = async (req, res) => {
   try {
-    const category = await Category.findById(req.params.id);
+    const category = await Category.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    });
 
     if (!category) {
       return res.status(404).json({ message: "Category not found" });
     }
 
     // Check if any menu items use this category
-    const itemsCount = await MenuItem.countDocuments({ category: category._id });
+    const itemsCount = await MenuItem.countDocuments({
+      category: category._id,
+      organizationId: req.user.organizationId,
+    });
     if (itemsCount > 0) {
       return res.status(400).json({
         message: `Cannot delete category. ${itemsCount} menu item(s) are using it.`,

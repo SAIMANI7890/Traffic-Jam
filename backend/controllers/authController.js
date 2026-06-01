@@ -1,6 +1,14 @@
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import generateToken from "../utils/generateToken.js";
+import {
+  isValidEmail,
+  validateUsername,
+  validatePin,
+  validatePassword,
+  sanitizeEmail,
+  sanitizeUsername,
+} from "../utils/validation.js";
 
 const badRequest = (res, message) => res.status(400).json({ message });
 const unauthorized = (res, message) => res.status(401).json({ message });
@@ -26,17 +34,34 @@ export const signupAdmin = async (req, res) => {
       );
     }
 
-    if (!/^\d{4}$/.test(String(pin))) {
-      return badRequest(res, "PIN must be exactly 4 digits");
+    // Validate username
+    const usernameValidation = validateUsername(username);
+    if (!usernameValidation.valid) {
+      return badRequest(res, usernameValidation.message);
+    }
+
+    // Validate email format
+    if (!isValidEmail(email)) {
+      return badRequest(res, "Please provide a valid email address");
+    }
+
+    // Validate PIN
+    const pinValidation = validatePin(pin);
+    if (!pinValidation.valid) {
+      return badRequest(res, pinValidation.message);
     }
 
     if (pin !== confirmPin) {
       return badRequest(res, "PIN and confirm PIN do not match");
     }
 
+    // Sanitize inputs
+    const sanitizedEmail = sanitizeEmail(email);
+    const sanitizedUsername = sanitizeUsername(username);
+
     // Check if email already exists
     const existingUser = await User.findOne({
-      email: String(email).toLowerCase().trim(),
+      email: sanitizedEmail,
     });
 
     if (existingUser) {
@@ -45,8 +70,8 @@ export const signupAdmin = async (req, res) => {
 
     // Create admin user with temporary organizationId
     const admin = await User.create({
-      username: String(username).trim(),
-      email: String(email).toLowerCase().trim(),
+      username: sanitizedUsername,
+      email: sanitizedEmail,
       pin: String(pin),
       role: "admin",
       organizationId: new mongoose.Types.ObjectId(), // Temporary ID
@@ -84,13 +109,23 @@ export const loginAdmin = async (req, res) => {
       return badRequest(res, "Email and PIN are required");
     }
 
-    if (!/^\d{4}$/.test(String(pin))) {
-      return badRequest(res, "PIN must be exactly 4 digits");
+    // Validate email format
+    if (!isValidEmail(email)) {
+      return badRequest(res, "Please provide a valid email address");
     }
+
+    // Validate PIN
+    const pinValidation = validatePin(pin);
+    if (!pinValidation.valid) {
+      return badRequest(res, pinValidation.message);
+    }
+
+    // Sanitize email
+    const sanitizedEmail = sanitizeEmail(email);
 
     // Find admin user
     const admin = await User.findOne({
-      email: String(email).toLowerCase().trim(),
+      email: sanitizedEmail,
       role: "admin",
     }).select("+pin");
 
@@ -128,14 +163,18 @@ export const loginStaff = async (req, res) => {
 
     // Method 1: Username + PIN (admin-created staff)
     if (username && pin) {
-      // Validation
-      if (!/^\d{4}$/.test(String(pin))) {
-        return badRequest(res, "PIN must be exactly 4 digits");
+      // Validate PIN
+      const pinValidation = validatePin(pin);
+      if (!pinValidation.valid) {
+        return badRequest(res, pinValidation.message);
       }
+
+      // Sanitize username
+      const sanitizedUsername = sanitizeUsername(username);
 
       // Find staff user by username
       const staff = await User.findOne({
-        username: String(username).trim(),
+        username: sanitizedUsername,
         role: "staff",
       })
         .select("+pin")
@@ -169,9 +208,17 @@ export const loginStaff = async (req, res) => {
 
     // Method 2: Email + Password (independent staff)
     if (email && password) {
+      // Validate email format
+      if (!isValidEmail(email)) {
+        return badRequest(res, "Please provide a valid email address");
+      }
+
+      // Sanitize email
+      const sanitizedEmail = sanitizeEmail(email);
+
       // Find staff user by email
       const staff = await User.findOne({
-        email: String(email).toLowerCase().trim(),
+        email: sanitizedEmail,
         role: "staff",
       }).select("+password");
 
@@ -214,17 +261,34 @@ export const signupStaff = async (req, res) => {
       );
     }
 
+    // Validate username
+    const usernameValidation = validateUsername(username);
+    if (!usernameValidation.valid) {
+      return badRequest(res, usernameValidation.message);
+    }
+
+    // Validate email format
+    if (!isValidEmail(email)) {
+      return badRequest(res, "Please provide a valid email address");
+    }
+
+    // Validate password
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      return badRequest(res, passwordValidation.message);
+    }
+
     if (password !== confirmPassword) {
       return badRequest(res, "Password and confirm password do not match");
     }
 
-    if (password.length < 6) {
-      return badRequest(res, "Password must be at least 6 characters");
-    }
+    // Sanitize inputs
+    const sanitizedEmail = sanitizeEmail(email);
+    const sanitizedUsername = sanitizeUsername(username);
 
     // Check if email already exists
     const existingUser = await User.findOne({
-      email: String(email).toLowerCase().trim(),
+      email: sanitizedEmail,
     });
 
     if (existingUser) {
@@ -233,7 +297,7 @@ export const signupStaff = async (req, res) => {
 
     // Check if username already exists
     const existingUsername = await User.findOne({
-      username: String(username).trim(),
+      username: sanitizedUsername,
     });
 
     if (existingUsername) {
@@ -242,8 +306,8 @@ export const signupStaff = async (req, res) => {
 
     // Create staff user
     const staff = await User.create({
-      username: String(username).trim(),
-      email: String(email).toLowerCase().trim(),
+      username: sanitizedUsername,
+      email: sanitizedEmail,
       password: String(password),
       role: "staff",
       organizationId: null, // Independent staff, not tied to admin
@@ -275,8 +339,16 @@ export const changeAdminPin = async (req, res) => {
       );
     }
 
-    if (!/^\d{4}$/.test(String(newPin))) {
-      return badRequest(res, "New PIN must be exactly 4 digits");
+    // Validate current PIN
+    const currentPinValidation = validatePin(currentPin);
+    if (!currentPinValidation.valid) {
+      return badRequest(res, `Current ${currentPinValidation.message.toLowerCase()}`);
+    }
+
+    // Validate new PIN
+    const newPinValidation = validatePin(newPin);
+    if (!newPinValidation.valid) {
+      return badRequest(res, `New ${newPinValidation.message.toLowerCase()}`);
     }
 
     if (newPin !== confirmNewPin) {
@@ -338,3 +410,25 @@ export const getAdminPin = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
+// ==================== VERIFY TOKEN ====================
+export const verifyToken = async (req, res) => {
+  try {
+    // req.user is set by the protect middleware
+    // If we reach here, the token is valid
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Return user data (token is still valid)
+    return res.json({ 
+      valid: true,
+      user: toPublicUser(user) 
+    });
+  } catch (error) {
+    console.error("Verify token error:", error);
+    return res.status(500).json({ message: "Server error during token verification" });
+  }
+};;

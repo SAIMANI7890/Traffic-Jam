@@ -4,7 +4,7 @@ import Layout from "../models/Layout.js";
 export const getLayouts = async (req, res) => {
   try {
     const { isActive } = req.query;
-    const filter = {};
+    const filter = { organizationId: req.user.organizationId };
 
     if (isActive !== undefined) {
       filter.isActive = isActive === "true";
@@ -21,7 +21,10 @@ export const getLayouts = async (req, res) => {
 // Get single layout
 export const getLayout = async (req, res) => {
   try {
-    const layout = await Layout.findById(req.params.id);
+    const layout = await Layout.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    });
 
     if (!layout) {
       return res.status(404).json({ message: "Layout not found" });
@@ -67,6 +70,7 @@ export const createLayout = async (req, res) => {
       name: name.trim(),
       tables,
       isActive: isActive !== undefined ? isActive : true,
+      organizationId: req.user.organizationId,
     });
 
     res.status(201).json({ layout });
@@ -80,7 +84,10 @@ export const updateLayout = async (req, res) => {
   try {
     const { name, tables, isActive } = req.body;
 
-    const layout = await Layout.findById(req.params.id);
+    const layout = await Layout.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    });
 
     if (!layout) {
       return res.status(404).json({ message: "Layout not found" });
@@ -133,7 +140,10 @@ export const updateLayout = async (req, res) => {
 // Delete layout
 export const deleteLayout = async (req, res) => {
   try {
-    const layout = await Layout.findById(req.params.id);
+    const layout = await Layout.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    });
 
     if (!layout) {
       return res.status(404).json({ message: "Layout not found" });
@@ -150,7 +160,10 @@ export const deleteLayout = async (req, res) => {
 // Toggle layout active status
 export const toggleLayoutActive = async (req, res) => {
   try {
-    const layout = await Layout.findById(req.params.id);
+    const layout = await Layout.findOne({
+      _id: req.params.id,
+      organizationId: req.user.organizationId,
+    });
 
     if (!layout) {
       return res.status(404).json({ message: "Layout not found" });

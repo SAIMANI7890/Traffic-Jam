@@ -86,8 +86,9 @@ export default function KitchenView() {
   };
 
   const getOrderCardColor = (order) => {
-    // Check if all items in the order are completed
-    const allItemsCompleted = order.items.every(
+    // Check if all non-cancelled items in the order are completed
+    const nonCancelledItems = order.items.filter(item => !item.cancelled);
+    const allItemsCompleted = nonCancelledItems.length > 0 && nonCancelledItems.every(
       (item) => item.kitchenStatus === "completed"
     );
     
@@ -104,7 +105,8 @@ export default function KitchenView() {
   };
 
   const isOrderCompleted = (order) => {
-    return order.items.every((item) => item.kitchenStatus === "completed");
+    const nonCancelledItems = order.items.filter(item => !item.cancelled);
+    return nonCancelledItems.length > 0 && nonCancelledItems.every((item) => item.kitchenStatus === "completed");
   };
 
   // Sort orders: incomplete orders first (FCFS), then completed orders (FCFS)
@@ -254,36 +256,62 @@ export default function KitchenView() {
                 )}
 
                 <div className="space-y-2 sm:space-y-3">
-                  {order.items.map((item, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between gap-2 rounded border p-2 sm:p-3"
-                    >
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="text-sm sm:text-base font-medium truncate">{item.name}</span>
-                        <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium whitespace-nowrap flex-shrink-0">
-                          x{item.qty}
-                        </span>
-                      </div>
-                      <select
-                        value={item.kitchenStatus || "pending"}
-                        onChange={(e) =>
-                          handleKitchenStatusChange(
-                            order._id,
-                            index,
-                            e.target.value
-                          )
-                        }
-                        className={`rounded border px-2 py-1 text-xs sm:text-sm font-medium w-[110px] sm:w-[130px] flex-shrink-0 ${getKitchenStatusColor(
-                          item.kitchenStatus || "pending"
-                        )}`}
+                  {order.items.map((item, index) => {
+                    // If order is cancelled, treat all items as cancelled for display
+                    const isItemCancelled = item.cancelled || order.status === "cancelled";
+                    
+                    return (
+                      <div
+                        key={index}
+                        className={`flex items-center justify-between gap-2 rounded border p-2 sm:p-3 ${
+                          isItemCancelled 
+                            ? "bg-red-50 border-red-200 opacity-60" 
+                            : ""
+                        }`}
                       >
-                        <option value="pending">⏳ Pending</option>
-                        <option value="preparing">👨‍🍳 Preparing</option>
-                        <option value="completed">✅ Completed</option>
-                      </select>
-                    </div>
-                  ))}
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className={`text-sm sm:text-base font-medium truncate ${
+                            isItemCancelled ? "text-red-600 line-through" : ""
+                          }`}>
+                            {item.name}
+                            {isItemCancelled && (
+                              <span className="ml-2 text-xs font-semibold text-red-600">
+                                (CANCELLED)
+                              </span>
+                            )}
+                          </span>
+                          <span className={`rounded px-2 py-0.5 text-xs font-medium whitespace-nowrap flex-shrink-0 ${
+                            isItemCancelled ? "bg-red-100 text-red-600" : "bg-gray-100"
+                          }`}>
+                            x{item.qty}
+                          </span>
+                        </div>
+                        {!isItemCancelled ? (
+                          <select
+                            value={item.kitchenStatus || "pending"}
+                            onChange={(e) =>
+                              handleKitchenStatusChange(
+                                order._id,
+                                index,
+                                e.target.value
+                              )
+                            }
+                            className={`rounded border px-2 py-1 text-xs sm:text-sm font-medium w-[110px] sm:w-[130px] flex-shrink-0 ${getKitchenStatusColor(
+                              item.kitchenStatus || "pending"
+                            )}`}
+                          >
+                            <option value="pending">⏳ Pending</option>
+                            <option value="preparing">👨‍🍳 Preparing</option>
+                            <option value="completed">✅ Completed</option>
+                          </select>
+                        ) : (
+                          <span className="rounded border border-red-300 bg-red-100 px-2 py-1 text-xs sm:text-sm font-medium text-red-700 w-[110px] sm:w-[130px] flex-shrink-0 text-center">
+                            ❌ Cancelled
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-t pt-3 sm:pt-4">
@@ -293,6 +321,7 @@ export default function KitchenView() {
                   <div className="text-base sm:text-lg font-bold">
                     Total: ₹
                     {order.items
+                      .filter(item => !item.cancelled)
                       .reduce((sum, item) => sum + item.price * item.qty, 0)
                       .toFixed(2)}
                   </div>

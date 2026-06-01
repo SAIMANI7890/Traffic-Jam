@@ -1,3 +1,5 @@
+import logger from "../utils/logger.js";
+
 export const requireRole = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
@@ -14,22 +16,22 @@ export const requireRole = (...roles) => {
 
 // Admin only middleware
 export const adminOnly = (req, res, next) => {
-  console.log("[ADMIN_ONLY] Checking admin access:", {
+  logger.log("[ADMIN_ONLY] Checking admin access:", {
     hasUser: !!req.user,
     role: req.user?.role,
     userId: req.user?.id
   });
 
   if (!req.user) {
-    console.log("[ADMIN_ONLY] No user in request");
+    logger.log("[ADMIN_ONLY] No user in request");
     return res.status(401).json({ message: "Not authorized" });
   }
 
   if (req.user.role !== "admin") {
-    console.log("[ADMIN_ONLY] Access denied. User role:", req.user.role);
+    logger.log("[ADMIN_ONLY] Access denied. User role:", req.user.role);
     return res.status(403).json({ message: "Access denied. Admin only." });
   }
 
-  console.log("[ADMIN_ONLY] Access granted");
+  logger.log("[ADMIN_ONLY] Access granted");
   return next();
 };

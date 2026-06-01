@@ -6,6 +6,7 @@ import StaffDashboard from "./pages/StaffDashboard.jsx";
 import StaffHome from "./pages/StaffHome.jsx";
 import LayoutView from "./pages/LayoutView.jsx";
 import StaffOrdersView from "./pages/StaffOrdersView.jsx";
+import StaffParcelOrders from "./pages/StaffParcelOrders.jsx";
 import KitchenView from "./pages/KitchenView.jsx";
 import ParcelOrder from "./pages/ParcelOrder.jsx";
 import LayoutPage from "./pages/LayoutPage.jsx";
@@ -75,6 +76,16 @@ export default function App() {
             element={
               user?.role === "staff" ? (
                 <ParcelOrder />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/staff/parcel-orders"
+            element={
+              user?.role === "staff" ? (
+                <StaffParcelOrders />
               ) : (
                 <Navigate to="/login" replace />
               )

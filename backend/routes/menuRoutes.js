@@ -16,8 +16,8 @@ import { adminOnly } from "../middleware/roleMiddleware.js";
 const router = express.Router();
 
 // Menu items routes
-router.get("/items", getMenuItems);
-router.get("/items/:id", getMenuItem);
+router.get("/items", protect, getMenuItems);
+router.get("/items/:id", protect, getMenuItem);
 
 router.post(
   "/items",
@@ -49,7 +49,7 @@ router.put(
 router.delete("/items/:id", protect, adminOnly, deleteMenuItem);
 
 // Categories routes
-router.get("/categories", getCategories);
+router.get("/categories", protect, getCategories);
 
 router.post(
   "/categories",

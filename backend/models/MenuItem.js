@@ -7,6 +7,11 @@ const menuItemSchema = new mongoose.Schema(
     price: { type: Number, required: true, min: 0 },
     category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
     isAvailable: { type: Boolean, default: true },
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
   { timestamps: true },
 );

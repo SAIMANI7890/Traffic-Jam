@@ -382,7 +382,7 @@ export default function OrderPanel({ table, layoutId, onClose, onSuccess }) {
                 disabled={submitting || selectedItems.length === 0}
                 className="w-full rounded-lg bg-green-600 px-4 py-2 sm:py-3 text-xs sm:text-base font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors active:scale-95"
               >
-                {submitting ? "Saving Order..." : "Save Order"}
+                {submitting ? "Placing Order..." : "Place Order"}
               </button>
             </div>
           </div>
