@@ -24,11 +24,16 @@ const app = express();
 const httpServer = createServer(app);
 
 // Socket.IO with production-ready CORS
+const allowedSocketOrigins = process.env.NODE_ENV === 'production'
+  ? [
+      process.env.FRONTEND_URL,
+      'https://traffic-jam-drab.vercel.app'
+    ].filter(Boolean)
+  : ['http://localhost:5173', 'http://localhost:3000'];
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.NODE_ENV === 'production'
-      ? process.env.FRONTEND_URL
-      : ['http://localhost:5173', 'http://localhost:3000'],
+    origin: allowedSocketOrigins,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true
   },
@@ -45,7 +50,7 @@ app.use(mongoSanitize()); // Prevent NoSQL injection
 // Rate limiting - General API limiter
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 500, // Increased for production (was 100)
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -54,16 +59,30 @@ const apiLimiter = rateLimit({
 // Stricter rate limiter for authentication endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per 15 minutes
+  max: 20, // Increased from 5 to 20 for better UX
   message: 'Too many login attempts, please try again after 15 minutes.',
   skipSuccessfulRequests: true, // Don't count successful logins
 });
 
 // CORS configuration for production
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? [
+      process.env.FRONTEND_URL,
+      'https://traffic-jam-drab.vercel.app'
+    ].filter(Boolean) // Remove undefined values
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000'];
+
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.FRONTEND_URL 
-    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200
 };
